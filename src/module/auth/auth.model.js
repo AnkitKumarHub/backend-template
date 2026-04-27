@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema(
     },
     verificationToken: { type: String, select: false }, //The select: false option means that this field will not be included in query results by default, enhancing security by preventing the token from being exposed when fetching user data.
     // pura yeh model se jb new object which means new user to ye saara data return hota hai to isme se verificationToken field by default return nahi hoga, unless explicitly specified in the query. This is a common practice to protect sensitive information like verification tokens from being exposed unintentionally when retrieving user data from the database.
-    refreshtoken: { type: String, select: false },
+    refreshToken: { type: String, select: false },
     resetPasswordtoken: { type: String, select: false },
     resetpasswordExpires: { type: Date, select: false },
   },
