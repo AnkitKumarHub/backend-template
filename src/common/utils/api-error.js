@@ -4,7 +4,7 @@ class ApiError extends Error {
   constructor(statusCode, message) {
     super(message);
     this.statusCode = statusCode;
-    this.isOperational = true;
+    this.isOperational = true; //! -- Important: can manipulate the errors based on this field
     Error.captureStackTrace(this, this.constructor);
   }
 

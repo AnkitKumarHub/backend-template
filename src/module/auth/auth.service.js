@@ -5,8 +5,9 @@ import {
   generateResetToken,
   verifyRefreshToken,
 } from "../../common/utils/jwt.utils.js";
-import ApiError from "../../utils/ApiError.js";
+import ApiError from "../../common/utils/api-error.js";
 import User from "./auth.model.js"; // this is the model which we will use to interact with the database and perform operations like creating a new user, finding a user, etc. The User model is defined in the auth.model.js file and it represents the structure of the user data in the MongoDB database. By importing it here, we can use it to perform various operations related to user authentication and management in our application.
+import { sendVerificationEmail } from "../../common/config/email.js";
 //and we will call User model not userSchema directly because userSchema is just a blueprint for the structure of the user data, while User is the actual model that we can use to create, read, update, and delete user documents in the database. The User model provides methods and functionalities to interact with the database based on the defined schema.
 
 const hashToken = (token) => {
@@ -21,7 +22,7 @@ const register = async ({ name, email, password, role }) => {
     throw ApiError.conflict("User with this email already exists");
   }
 
-  //token
+  //Verification token-send to user email for verification & in DB will save hashed version of the token when user clicks verification link in email we will hash the token from the link and compare it with the hashed token in the database to verify the user's email.
   const { rawToken, hashedToken } = generateResetToken(); // in DB we prefer to keep hashed token
 
   const user = await User.create({
@@ -32,7 +33,12 @@ const register = async ({ name, email, password, role }) => {
     verificationToken: hashedToken,
   });
 
-  //TODO: send an email to user with token: rawToken
+  //TODO: send mail to the client with rawToken to verify email
+  try {
+    await sendVerificationEmail(user.email, rawToken);
+  } catch (error) {
+    console.error("error sending Verification email: ", error);
+  }
 
   const userObj = user.toObject();
   delete userObj.password;
@@ -56,6 +62,8 @@ const login = async ({ email, password }) => {
   }
 
   //somehow i will check password
+  const isMatch = user.comparePassword(password);
+  if (!isMatch) throw ApiError.unauthorized("Invalid email or password");
 
   if (!user.isVerified) {
     throw ApiError.forbidden("Please verify your email before logging in");
@@ -122,8 +130,8 @@ const logout = async (userId) => {
   // user.refreshToken = undefined // or null which one to choose and why??
   // await user.save({validateBeforeSave: false})
 
-  res.clearCookie("refreshToken");
-  res.clearCookie("accessToken");
+  // res.clearCookie("refreshToken");
+  // res.clearCookie("accessToken");
 
   await User.findByIdAndUpdate(
     userId,
@@ -145,18 +153,27 @@ const forgotPassword = async (emailId) => {
   //TODO: send mail to the client
 };
 
-const getVerified = async (userId) => {
+const verifyEmail = async (token) => {
+  const hashedToken = hashToken(token);
+  const user = await User.findOne({ verificationToken: hashedToken }).select(
+    "+verificationToken",
+  );
+
+  if (!user) throw ApiError.notFound("Invalid verification token");
+
+  user.isVerified = true;
+  user.verificationToken = undefined;
+
+  await user.save();
+  return user;
+};
+
+const getMe = async (userId) => {
   const user = await User.findById(userId);
 
   if (!user) throw ApiError.notFound("User not found");
 
-  const { rawToken, hashedToken } = generateResetToken();
-
-  user.verificationToken = hashedToken;
-
-  await user.save();
-
-  //TODO: send mail to the client with rawToken for verification
+  return user;
 };
 
-export { register, login, refresh, logout };
+export { register, login, refresh, logout, forgotPassword, verifyEmail, getMe };
